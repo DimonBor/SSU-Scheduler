@@ -46,6 +46,7 @@ def updateEvents(creds):
         service = build('calendar', 'v3', credentials=creds)
 
         for ssuEvent in scheduleJSON:
+            toSkip = False
             if not ssuEvent['NAME_DISC']: continue
 
             timeStart = datetime.datetime.strptime(
@@ -68,8 +69,11 @@ def updateEvents(creds):
 
             events = checkEventsResult.get('items', [])
 
-            if events:
-                continue
+            for entry in events:
+                if entry['summary'] == ssuEvent['NAME_DISC']:
+                    toSkip = True
+
+            if toSkip: continue
 
             event = {
                 'summary': ssuEvent['NAME_DISC'],
