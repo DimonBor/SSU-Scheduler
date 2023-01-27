@@ -65,12 +65,12 @@ def updateEvents():
             timeStart = datetime.datetime.strptime(     # Converting Schedule timeframe to isoformat
                 f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][:5]}",
                 "%d.%m.%Y %H:%M"
-            ).replace(tzinfo=dtz.gettz("Europe/Kyiv")).isoformat()
+            ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
 
             timeEnd = datetime.datetime.strptime(       # Converting Schedule timeframe to isoformat
                 f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][6:]}",
                 "%d.%m.%Y %H:%M"
-            ).replace(tzinfo=dtz.gettz("Europe/Kyiv")).isoformat()
+            ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
 
             checkEventsResult = service.events().list(      # Check if events
                 calendarId='primary',                       # already created
