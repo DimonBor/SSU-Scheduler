@@ -17,23 +17,50 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 GROUP_CODE = os.getenv('GROUP_CODE')
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
+
 def getSchedule():
     Data = {
-        "id_grp": GROUP_CODE,
+        "id_grp": GROUP_CODE,  # 1002732
         "date_beg": (datetime.date.today()).strftime("%d.%m.%Y"),
-        "date_end": (datetime.date.today() + relativedelta(months=1)).strftime("%d.%m.%Y")
+        "date_end": (
+            datetime.date.today() + relativedelta(months=1)
+        ).strftime("%d.%m.%Y")
     }
 
+    response = requests.post(
+        'https://schedule.sumdu.edu.ua/index/json',
+        data=Data,
+        verify=False,
+        timeout=10
+    )
+
+    return json.loads(response.text)
+
+
+def updateEvents(creds):
+    scheduleJSON = getSchedule()
     
-    response = requests.post('https://schedule.sumdu.edu.ua/index/json', data=Data, verify=False, timeout=10)
-    print(response.text)
+    try:
+        service = build('calendar', 'v3', credentials=creds)
 
-    scheduleJson = json.loads(response.text)
+        for ssuEvent in scheduleJSON:
+            
+            events_result = service.events().list(calendarId='primary', timeMin=now,
+                                                maxResults=10, singleEvents=True,
+                                                orderBy='startTime').execute()
+            events = events_result.get('items', [])
 
-    pprint.pprint(scheduleJson)
+            if not events:
+                print('No upcoming events found.')
+                return
 
-def insertEvent():
-    pass
+            # Prints the start and name of the next 10 events
+            for event in events:
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                print(start, event['summary'])
+
+    except HttpError as error:
+        print('An error occurred: %s' % error)
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -56,29 +83,6 @@ def main():
         # Save the credentials for the next run
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
-
-    try:
-        service = build('calendar', 'v3', credentials=creds)
-
-        # Call the Calendar API
-        now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-        print('Getting the upcoming 10 events')
-        events_result = service.events().list(calendarId='primary', timeMin=now,
-                                              maxResults=10, singleEvents=True,
-                                              orderBy='startTime').execute()
-        events = events_result.get('items', [])
-
-        if not events:
-            print('No upcoming events found.')
-            return
-
-        # Prints the start and name of the next 10 events
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            print(start, event['summary'])
-
-    except HttpError as error:
-        print('An error occurred: %s' % error)
 
     getSchedule()
 
