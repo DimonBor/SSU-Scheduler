@@ -1,3 +1,4 @@
+import re
 import os.path
 import json
 import logging
@@ -214,5 +215,4 @@ if __name__ == '__main__':
     scheduler.add_job(schedule_utils.update_events, 'interval', minutes=UPDATE_TIMEOUT, max_instances=1)
     scheduler.start()
 
-    serve(app, host='0.0.0.0', port=5000)
-
+    serve(app, host='0.0.0.0', port=5000, url_base=re.match(r'[^:]*',os.getenv('WEB_URL'))[0])
