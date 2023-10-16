@@ -35,12 +35,13 @@ UPDATE_TIMEOUT = int(os.getenv('UPDATE_TIMEOUT')) if os.getenv('UPDATE_TIMEOUT')
 SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/userinfo.email']
 
 DATA = {
-    'response_type': "code",
+    'response_type': 'code',
     'login_redirect_uri': f"{os.getenv('WEB_URL')}/settings",
     'logout_redirect_uri': f"{os.getenv('WEB_URL')}/logout",
     'scope': SCOPES,
     'client_id': CLIENT_ID,
-    'prompt': 'consent'
+    'prompt': 'consent',
+    'access_type': 'offline'
 }
 
 URL_DICT = {
@@ -55,13 +56,15 @@ LOGIN_URI = CLIENT.prepare_request_uri(
     uri=URL_DICT['google_oauth'],
     redirect_uri=DATA['login_redirect_uri'],
     scope=DATA['scope'],
-    prompt=DATA['prompt']
+    prompt=DATA['prompt'],
+    access_type=DATA['access_type']
 )
 LOGOUT_URI = CLIENT.prepare_request_uri(
     uri=URL_DICT['google_oauth'],
     redirect_uri=DATA['logout_redirect_uri'],
     scope=DATA['scope'],
-    prompt=DATA['prompt']
+    prompt=DATA['prompt'],
+    access_type=DATA['access_type']
 )
 
 
@@ -175,16 +178,17 @@ def settings():
             CLIENT.parse_request_body_response(json.dumps(token_response.json()))
             uri, headers, body = CLIENT.add_token(URL_DICT['get_user_info'])
             response_user_info = requests.get(uri, headers=headers, data=body)
-            info = response_user_info.json()
-        except:
+            email = response_user_info.json()['email']
+
+        except:  # not OK response from Google API
             logging.exception(f"[{datetime.datetime.now()}]: Exception occurred!!!")
-            return render_template(  # not OK response from Google API
+            return render_template(
                 'error.html',
                 error="Google authorization error"
             )
 
         update_user(  # Create or update user in DB
-            info['email'],
+            email,
             token_response.json(),
             popup_reminder=int(form.reminder_minutes.data),
             group_code=int(form.group.data),
