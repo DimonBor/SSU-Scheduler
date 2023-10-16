@@ -45,7 +45,10 @@ def update_events():
 
             schedule_events = get_schedule(user.group_code, user.fetch_days)
 
-            service = build('calendar', 'v3', credentials=Credentials(token=get_access_token(user)))
+            access_token = get_access_token(user)
+            if not access_token: continue
+
+            service = build('calendar', 'v3', credentials=Credentials(token=access_token))
 
             calendars_list = service.calendarList().list().execute()
             calendars = calendars_list.get('items', [])
@@ -59,7 +62,7 @@ def update_events():
             calendar_id = service.calendars().insert(body={'summary': 'SSU Schedule'}).execute()['id']
             # Creating the calendar
 
-            service.calendarList().update(  # Enable the calendar in list and update color to much SSU style
+            service.calendarList().update(  # Enable the calendar in list and update color to match SSU style
                 calendarId=calendar_id,
                 body={
                     'colorId': '16',

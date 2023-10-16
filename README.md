@@ -39,4 +39,10 @@ Go to web page, complete configuration, and wait till update task will be execut
 \
 *Q: Can I set up more than one group to fetch schedule?*
 
-**A: Currently this is not supported, however, maybe will be done in future.**
+**A: Currently this is not supported, however, maybe will be done in the future.**
+
+\
+*Q: Schedule stopped updating. What happened?*
+
+**A: Try to re-login. Probably refresh token has expired, so you needed to re-login manually(remember about update timeout).**
+**If this doesn't help please contact the app owner.**

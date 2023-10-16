@@ -56,22 +56,25 @@ def get_access_token(user):
 
     if user.expires_at < datetime.datetime.now() or (user.expires_at - datetime.datetime.now()).seconds < 10:
         # request a new access token if the old one is expired or about to expire
+        try:
+            token_url, headers, body = CLIENT.prepare_refresh_token_request(
+                URL_DICT['token_gen'],
+                refresh_token=user.refresh_token,
+                scope=SCOPES
+            )
 
-        token_url, headers, body = CLIENT.prepare_refresh_token_request(
-            URL_DICT['token_gen'],
-            refresh_token=user.refresh_token,
-            scope=SCOPES
-        )
+            token_response = requests.post(
+                token_url,
+                headers=headers,
+                data=body,
+                auth=(CLIENT_ID, CLIENT_SECRET)
+            ).json()
+            user.access_token = token_response['access_token']  # update a token in the DB
+            commit()
 
-        token_response = requests.post(
-            token_url,
-            headers=headers,
-            data=body,
-            auth=(CLIENT_ID, CLIENT_SECRET)
-        ).json()
-
-        user.access_token = token_response['access_token']  # update a token in the DB
-        commit()
+        except:  # Seems like refresh token no longer works
+            delete_user(user.email)
+            return None
 
         logging.debug(f"[{datetime.datetime.now()}] Generating a new token for user: {user.email}")
 
@@ -85,6 +88,7 @@ def get_access_token(user):
 @db_session
 def delete_user(email):
     User[email].delete()
+    logging.info(f"[{datetime.datetime.now()}] Deleted user: {email}")
 
 
 @db_session
