@@ -177,6 +177,7 @@ def settings():
             response_user_info = requests.get(uri, headers=headers, data=body)
             info = response_user_info.json()
         except:
+            logging.exception(f"[{datetime.datetime.now()}]: Exception occurred!!!")
             return render_template(  # not OK response from Google API
                 'error.html',
                 error="Google authorization error"
