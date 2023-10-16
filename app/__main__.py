@@ -1,164 +1,211 @@
-import os
 import os.path
 import json
-import time
 import logging
-import schedule
+import secrets
 import requests
 import datetime
-import dateutil.tz as dtz
-from dateutil.relativedelta import relativedelta
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
-class ContinueI(Exception):
-    pass
+from waitress import serve
+from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask, request, render_template, redirect
+from flask_bootstrap import Bootstrap5
+from flask_wtf import FlaskForm, CSRFProtect
+from wtforms import SubmitField, SelectField, IntegerField, validators
+from oauthlib import oauth2
+if __name__ == "__main__":
+    from app import schedule_utils
+    from app.db_utils import update_user, delete_user
 
 
 logging.basicConfig(level="INFO")
+
+requests.packages.urllib3.disable_warnings()
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
-continueI = ContinueI()
-creds = None
 
-SCHEDULE_PERIOD = int(os.getenv('SCHEDULE_PERIOD')) if os.getenv('SCHEDULE_PERIOD') else 14
-GROUP_CODE = int(os.getenv('GROUP_CODE'))           if os.getenv('GROUP_CODE')      else 1002732
-POPUP_REMINDER = int(os.getenv('POPUP_REMINDER'))   if os.getenv('POPUP_REMINDER')  else 10
-UPDATE_TIMEOUT = int(os.getenv('UPDATE_TIMEOUT'))   if os.getenv('UPDATE_TIMEOUT')  else 60
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+try:
+    GROUPS = list(tuple(requests.get("https://schedule.sumdu.edu.ua/index/json?method=getGroups", verify=False).json().items())[1:])
+    # fetch group list at startup
+except:
+    logging.error(f"[{datetime.datetime.now()}] Failed to get groups list!")
+    exit(1)
 
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+UPDATE_TIMEOUT = int(os.getenv('UPDATE_TIMEOUT')) if os.getenv('UPDATE_TIMEOUT') else 30
+SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/userinfo.email']
 
-def getSchedule():
-    Data = {
-        "id_grp": GROUP_CODE,
-        "date_beg": (datetime.date.today()).strftime("%d.%m.%Y"),
-        "date_end": (
-            datetime.date.today() + relativedelta(days=SCHEDULE_PERIOD)
-        ).strftime("%d.%m.%Y")
-    }   # Creating payload for selected period 
+DATA = {
+    'response_type': "code",
+    'login_redirect_uri': f"{os.getenv('WEB_URL')}/settings",
+    'logout_redirect_uri': f"{os.getenv('WEB_URL')}/logout",
+    'scope': SCOPES,
+    'client_id': CLIENT_ID,
+    'prompt': 'consent'
+}
 
-    try:
-        response = requests.post(
-            'https://schedule.sumdu.edu.ua/index/json',
-            data=Data,
-            verify=False,
-            timeout=10
-        )
-    except:
-        logging.error(f"[{datetime.datetime.now()}]: Error of SSU Schedule")
+URL_DICT = {
+    'google_oauth': 'https://accounts.google.com/o/oauth2/v2/auth',
+    'token_gen': 'https://oauth2.googleapis.com/token',
+    'get_user_info': 'https://www.googleapis.com/oauth2/v3/userinfo'
+}
 
-    return json.loads(response.text)
+CLIENT = oauth2.WebApplicationClient(CLIENT_ID)
 
-
-def updateEvents():
-    scheduleJSON = getSchedule()
-
-    try:
-        service = build('calendar', 'v3', credentials=creds)
-
-        for ssuEvent in scheduleJSON:
-            if not ssuEvent['NAME_DISC']: continue
-
-            timeStart = datetime.datetime.strptime(     # Converting Schedule timeframe to isoformat
-                f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][:5]}",
-                "%d.%m.%Y %H:%M"
-            ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
-
-            timeEnd = datetime.datetime.strptime(       # Converting Schedule timeframe to isoformat
-                f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][6:]}",
-                "%d.%m.%Y %H:%M"
-            ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
-
-            checkEventsResult = service.events().list(      # Check if events
-                calendarId='primary',                       # already created
-                timeMin=timeStart,
-                timeMax=timeEnd,
-                singleEvents=True,
-                orderBy='startTime'
-            ).execute()
-
-            events = checkEventsResult.get('items', [])     
-
-            try:
-                for entry in events:    # Checking if event already scheduled
-                    if entry['summary'] == ssuEvent['NAME_DISC']:
-                        raise continueI
-            except ContinueI:
-                continue
+LOGIN_URI = CLIENT.prepare_request_uri(
+    uri=URL_DICT['google_oauth'],
+    redirect_uri=DATA['login_redirect_uri'],
+    scope=DATA['scope'],
+    prompt=DATA['prompt']
+)
+LOGOUT_URI = CLIENT.prepare_request_uri(
+    uri=URL_DICT['google_oauth'],
+    redirect_uri=DATA['logout_redirect_uri'],
+    scope=DATA['scope'],
+    prompt=DATA['prompt']
+)
 
 
-            event = {   # Creating event payload
-                'summary': ssuEvent['NAME_DISC'],
-                'location': ssuEvent['NAME_AUD'] if ssuEvent['NAME_AUD'] else 'Online',
-                'description': f"{ssuEvent['NAME_FIO']}\n{ssuEvent['NAME_STUD']}",
-                'start': {
-                    'dateTime': timeStart,
-                    'timeZone': 'Europe/Kyiv',
-                },
-                'end': {
-                    'dateTime': timeEnd,
-                    'timeZone': 'Europe/Kyiv',
-                },
-                'recurrence': None,
-                'reminders': {
-                    'useDefault': False,
-                    'overrides': [
-                        {'method': 'popup', 'minutes': POPUP_REMINDER},
-                    ],
-                },
-            }
-
-            event = service.events().insert(    # Executing API call
-                calendarId='primary',
-                body=event
-            ).execute()
-
-            logging.info(f"[{datetime.datetime.now()}]: Event created: {event.get('htmlLink')}")
-
-    except HttpError as error:
-        logging.error(f"[{datetime.datetime.now()}]: {error}")
+app = Flask(__name__)
+app.secret_key = secrets.token_urlsafe(16)
+bootstrap = Bootstrap5(app)
+csrf = CSRFProtect(app)
+scheduler = BackgroundScheduler()
 
 
-def main():
+class SettingsForm(FlaskForm):
+    group = SelectField(
+        'Your group',
+        [validators.InputRequired()],
+        choices=GROUPS)
+    schedule_period = SelectField(
+        'Period to fetch schedule, days',
+        [validators.InputRequired()],
+        choices=["7", "14"])
+    reminder_minutes = IntegerField(
+        'Set reminder before the event, min',
+        [validators.InputRequired(), validators.NumberRange(
+            max=60,
+            min=1,
+            message="Reminder should be less than 61 and greater than 0."
+        )])
+    submit = SubmitField('Submit')
 
-    # Stolen from Google examples
-    global creds
 
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file(
-            'token.json', 
-            SCOPES
-        )
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'creds/credentials.json', 
-                SCOPES
-            )
-            creds = flow.run_local_server(port=0)
+@app.route('/')
+def login():
+    return redirect(LOGIN_URI)  # get code from Google to perform any action
 
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
 
-    logging.info(
-        f"[{datetime.datetime.now()}]: Starting schedule.\n" +
-        "\tParams:\n" +
-        f"\t\tSCHEDULE_PERIOD: {SCHEDULE_PERIOD}\n" +
-        f"\t\tGROUP_CODE: {GROUP_CODE}\n" +
-        f"\t\tPOPUP_REMINDER: {POPUP_REMINDER}\n" +
-        f"\t\tUPDATE_TIMEOUT: {UPDATE_TIMEOUT}\n"
+@app.route('/logout')
+def logout():
+
+    code = request.args.get('code')
+
+    if not code:
+        return redirect(LOGOUT_URI)  # get code from Google to perform any action
+
+    token_url, headers, body = CLIENT.prepare_token_request(
+        URL_DICT['token_gen'],
+        authorisation_response=request.url,
+        redirect_url=request.base_url,
+        code=code
     )
 
-    while True:     # Running scheduler
-        schedule.run_pending()
-        time.sleep(1)
+    token_response = requests.post(
+        token_url,
+        headers=headers,
+        data=body,
+        auth=(CLIENT_ID, CLIENT_SECRET)
+    )
+
+    try:
+        CLIENT.parse_request_body_response(json.dumps(token_response.json()))
+        uri, headers, body = CLIENT.add_token(URL_DICT['get_user_info'])
+        response_user_info = requests.get(uri, headers=headers, data=body)
+        info = response_user_info.json()
+    except:
+        return render_template(
+            'error.html',
+            error="Google authorization error"
+        )
+
+    try:
+        delete_user(info['email'])
+    except:
+        return render_template(
+            'error.html',
+            error="Can't remove this user"
+        )
+
+    return render_template(
+        'success.html',
+        message=f"User has been deleted successfully. Schedule will no longer update in your calendar."
+    )
+
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+
+    code = request.args.get('code')
+
+    if not code:
+        return redirect(LOGIN_URI)
+
+    form = SettingsForm()
+
+    if form.validate_on_submit():
+
+        token_url, headers, body = CLIENT.prepare_token_request(
+            URL_DICT['token_gen'],
+            authorisation_response=request.url,
+            redirect_url=request.base_url,
+            code=code
+        )
+
+        token_response = requests.post(
+            token_url,
+            headers=headers,
+            data=body,
+            auth=(CLIENT_ID, CLIENT_SECRET)
+        )
+
+        try:
+            CLIENT.parse_request_body_response(json.dumps(token_response.json()))
+            uri, headers, body = CLIENT.add_token(URL_DICT['get_user_info'])
+            response_user_info = requests.get(uri, headers=headers, data=body)
+            info = response_user_info.json()
+        except:
+            return render_template(  # not OK response from Google API
+                'error.html',
+                error="Google authorization error"
+            )
+
+        update_user(  # Create or update user in DB
+            info['email'],
+            token_response.json(),
+            popup_reminder=int(form.reminder_minutes.data),
+            group_code=int(form.group.data),
+            fetch_days=int(form.schedule_period.data)
+        )
+
+        return render_template(
+            'success.html',
+            message=f"User has been configured successfully. Schedule will appear in your calendar in {UPDATE_TIMEOUT} minutes."
+        )
+
+    return render_template('settings.html', form=form)
 
 
 if __name__ == '__main__':
-    schedule.every(UPDATE_TIMEOUT).minutes.do(updateEvents)
-    main()
+
+    logging.info(
+        f"[{datetime.datetime.now()}]: Starting scheduler.\n" +
+        "\tParams:\n" +
+        f"\t\tUPDATE_TIMEOUT: {UPDATE_TIMEOUT}\n"
+    )
+
+    scheduler.add_job(schedule_utils.update_events, 'interval', minutes=UPDATE_TIMEOUT, max_instances=1)
+    scheduler.start()
+
+    serve(app, host='0.0.0.0', port=5000)
+

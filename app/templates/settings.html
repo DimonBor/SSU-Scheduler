@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% from 'bootstrap5/form.html' import render_form %}
+
+{% block title %}
+Scheduler settings
+{% endblock %}
+
+
+{% block content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-10 col-lg-8 mx-lg-auto mx-md-auto">
+
+      <h1 class="pt-5 pb-2">Settings</h1>
+
+      {{ render_form(form) }}
+
+      <p class="pt-5"><strong>{{ message }}</strong></p>
+
+      <form action="/logout">
+        <button class="btn btn-danger" type="submit">Disable Scheduler</button>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

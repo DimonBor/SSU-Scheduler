@@ -1,35 +1,42 @@
 # SSU-Scheduler
-Middleware for pushing schedule from SSU to Google Calendar
+Middleware app for pushing schedule from [SSU](https://int.sumdu.edu.ua/en//) to Google Calendar.
 
 ## Available params
 There are a few params that can be customised.
 
-|Env var | Default value, units | Notes |
-|--------|----------------------|-------|
-| `SCHEDULE_PERIOD` | 14, days | For which period in the schedule events will be created |
-| `GROUP_CODE` | 1002732, int | Group code for schedule requests |
-| `POPUP_REMINDER` | 10, mins | Specify Google Calendar popup reminder |
-| `UPDATE_TIMEOUT` | 60, mins | Events update frequency |
+| Env var          | Default value, units | Notes                                                                                          |
+|------------------|----------------------|------------------------------------------------------------------------------------------------|
+| `UPDATE_TIMEOUT` | 30, mins             | Events update frequency                                                                        |
+| `CLIENT_SECRET`  | None                 | Client Secret from https://console.cloud.google.com/apis/credentials                           |
+| `CLIENT_ID`      | None                 | Client ID from https://console.cloud.google.com/apis/credentials                               |
+| `WEB_URL`        | None                 | Redirect URL base. External app address which will be used by Google to redirect authorization |
 
 ## Basic usage
-Follow [this](https://developers.google.com/calendar/api/quickstart/python) guide to create your credentials JSON file. Then rename it to `credentials.json` and place in some folder on your machine and run the following command:
 
+Deploy the application:
 ```bash
-docker run -d --restart=always --net=host -v /path/to/creds/folder/:/creds --name ssu-scheduler dimonbor/ssu-scheduler:latest
+docker compose up -d
 ```
 
-Check container logs via:
+Or run dev variant (the only difference is exposed Postres ports):
 ```bash
-docker logs ssu-scheduler
+docker compose up -d -f docker-compose-dev.yaml
 ```
 
-Here you can find the URL for authorizing the app. Authorize it and on the last step if you start it on the remote machine, copy the URL that fails to access `localhost` and execute it with `curl` on the remote machine. For example:
-```bash
-curl 'http://localhost:39761/?state=GXrR2BNt3c6KmgTschdojGcRgweJqV&code=4/0AWtgzh7n6iSQtsrrwiqasdAUDxsg540BUMsV4bUMF-qAllQpQjQTSWXwmPmr6kArV6qY2g&scope=https://www.googleapis.com/auth/calendar'
-```
-Done. Now just wait for the events to be created during the update period.
+Go to web page, complete configuration, and wait till update task will be executed (no longer than `UPDATE_TIMEOUT`)
 
-Running with params:
-```bash
-docker run -d --restart=always --net=host -v /path/to/creds/folder/:/creds -e UPDATE_TIMEOUT=5 -e SCHEDULE_PERIOD=32 --name ssu-scheduler dimonbor/ssu-scheduler:latest
-```
+## Web FAQ
+
+*Q: How to disable scheduler?*
+
+**A: Go to /logout page. This will remove user from app DB and schedule will no longer be updated**
+
+\
+*Q: How can I see my current configuration?*
+
+**A: There is no such possibility. All actions are performed with re-authorization with Google. I don't want to write my own authorization system**
+
+\
+*Q: Can I set up more than one group to fetch schedule?*
+
+**A: Currently this is not supported, however, maybe will be done in future.**

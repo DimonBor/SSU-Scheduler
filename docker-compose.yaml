@@ -1,0 +1,27 @@
+version: '3.3'
+
+services:
+
+  scheduler-db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: "scheduler"
+      POSTGRES_PASSWORD: "scheduler"
+      POSTGRES_DB: "scheduler"
+    volumes:
+      - scheduler-db:/var/lib/postgresql/data
+
+  scheduler:
+    build: .
+    restart: always
+    ports:
+      - 5000:5000
+    environment:
+      CLIENT_SECRET: ${CLIENT_SECRET}
+      CLIENT_ID: ${CLIENT_ID}
+      WEB_URL: ${WEB_URL}
+      UPDATE_TIMEOUT: ${UPDATE_TIMEOUT}
+
+volumes:
+  scheduler-db:
