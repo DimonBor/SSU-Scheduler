@@ -161,8 +161,6 @@ def settings():
 
     if form.validate_on_submit():
 
-        code = request.args.get('code')
-
         token_url, headers, body = CLIENT.prepare_token_request(
             URL_DICT['token_gen'],
             authorisation_response=request.url,
