@@ -88,7 +88,6 @@ def get_access_token(user):
 @db_session
 def delete_user(email):
     User[email].delete()
-    logging.info(f"[{datetime.datetime.now()}] Deleted user: {email}")
 
 
 @db_session

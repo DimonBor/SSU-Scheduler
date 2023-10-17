@@ -126,20 +126,22 @@ def logout():
         CLIENT.parse_request_body_response(json.dumps(token_response.json()))
         uri, headers, body = CLIENT.add_token(URL_DICT['get_user_info'])
         response_user_info = requests.get(uri, headers=headers, data=body)
-        info = response_user_info.json()
+        email = response_user_info.json()['email']
     except:
         return render_template(
             'error.html',
-            error="Google authorization error"
+            error="Google authorization error."
         )
 
     try:
-        delete_user(info['email'])
+        delete_user(email)
     except:
         return render_template(
             'error.html',
-            error="Can't remove this user"
+            error="Can't remove this user."
         )
+
+    logging.info(f"[{datetime.datetime.now()}] Deleted user: {email}")
 
     return render_template(
         'success.html',
@@ -185,16 +187,24 @@ def settings():
             logging.exception(f"[{datetime.datetime.now()}]: Exception occurred!!!")
             return render_template(
                 'error.html',
-                error="Google authorization error"
+                error="Google authorization error."
             )
 
-        update_user(  # Create or update user in DB
-            email,
-            token_response.json(),
-            popup_reminder=int(form.reminder_minutes.data),
-            group_code=int(form.group.data),
-            fetch_days=int(form.schedule_period.data)
-        )
+        try:
+            update_user(  # Create or update user in DB
+                email,
+                token_response.json(),
+                popup_reminder=int(form.reminder_minutes.data),
+                group_code=int(form.group.data),
+                fetch_days=int(form.schedule_period.data)
+            )
+        except:
+            return render_template(
+                'error.html',
+                error="Failed to create user."
+            )
+
+        logging.info(f"[{datetime.datetime.now()}]: Created user: {email}")
 
         return render_template(
             'success.html',
