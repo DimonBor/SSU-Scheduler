@@ -39,6 +39,7 @@ Go to web page, complete configuration, and wait till update task will be execut
 *Q: How can I see my current configuration?*
 
 **A: There is no such possibility. All actions are performed with re-authorization with Google. I don't want to write my own authorization system**
+**So that just re-login and set desired settings.**
 
 \
 *Q: Schedule stopped updating. What happened?*
