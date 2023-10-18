@@ -11,20 +11,23 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, request, render_template, redirect
 from flask_bootstrap import Bootstrap5
 from flask_wtf import FlaskForm, CSRFProtect
-from wtforms import SubmitField, SelectField, IntegerField, validators
+from wtforms import SubmitField, SelectMultipleField, IntegerField, validators, SelectField
 from oauthlib import oauth2
+
 if __name__ == "__main__":
     from app import schedule_utils
     from app.db_utils import update_user, delete_user
 
 
-logging.basicConfig(level="INFO")
+logging.basicConfig(level=f"{os.getenv('DEBUG_LEVEL') if os.getenv('DEBUG_LEVEL') else 'INFO'}")
 
 requests.packages.urllib3.disable_warnings()
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 
 try:
-    GROUPS = list(tuple(requests.get("https://schedule.sumdu.edu.ua/index/json?method=getGroups", verify=False).json().items())[1:])
+    GROUPS = list(tuple(
+        requests.get("https://schedule.sumdu.edu.ua/index/json?method=getGroups", verify=False).json().items()
+    )[1:])
     # fetch group list at startup
 except:
     logging.error(f"[{datetime.datetime.now()}] Failed to get groups list!")
@@ -77,10 +80,11 @@ scheduler = BackgroundScheduler()
 
 
 class SettingsForm(FlaskForm):
-    group = SelectField(
-        'Your group',
+    groups = SelectMultipleField(
+        'Your groups',
         [validators.InputRequired()],
-        choices=GROUPS)
+        choices=GROUPS,
+    )
     schedule_period = SelectField(
         'Period to fetch schedule, days',
         [validators.InputRequired()],
@@ -193,7 +197,7 @@ def settings():
                 email,
                 token_response.json(),
                 popup_reminder=int(form.reminder_minutes.data),
-                group_code=int(form.group.data),
+                group_codes=list(map(int, form.groups.data)),
                 fetch_days=int(form.schedule_period.data)
             )
         except:

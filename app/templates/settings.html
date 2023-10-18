@@ -16,14 +16,21 @@ Scheduler settings
 
       {{ render_form(form) }}
 
-      <p class="pt-5"><strong>{{ message }}</strong></p>
-
-      <form action="/logout">
+      <form action="/logout" class="pt-5 pb-2">
         <button class="btn btn-danger" type="submit">Disable Scheduler</button>
       </form>
 
     </div>
   </div>
 </div>
+
+<script>
+  $( '#groups' ).select2( {
+    theme: "bootstrap-5",
+    width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
+    placeholder: $( this ).data( 'placeholder' ),
+    closeOnSelect: false,
+} );
+</script>
 
 {% endblock %}
