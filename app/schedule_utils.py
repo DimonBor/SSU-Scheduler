@@ -1,9 +1,9 @@
-import datetime
 import json
 import logging
 import dateutil.tz as dtz
 import requests
 from hashlib import sha256
+from datetime import datetime, date, timedelta
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -16,9 +16,9 @@ def get_schedule(group_code, schedule_period):
     data = {
         "method": "getSchedules",
         "id_grp": group_code,
-        "date_beg": (datetime.date.today()).strftime("%d.%m.%Y"),
+        "date_beg": (date.today()).strftime("%d.%m.%Y"),
         "date_end": (
-                datetime.date.today() + datetime.timedelta(days=schedule_period)
+                date.today() + timedelta(days=schedule_period)
         ).strftime("%d.%m.%Y")
     }  # Creating payload for selected period
 
@@ -30,24 +30,24 @@ def get_schedule(group_code, schedule_period):
             timeout=10
         )
     except:
-        logging.error(f"[{datetime.datetime.now()}]: Error of SSU Schedule")
+        logging.error(f"[{datetime.now()}]: Error of SSU Schedule")
         return None
 
     return json.loads(response.text)
 
 
 def update_events():
-    logging.info(f"[{datetime.datetime.now()}]: Starting updates.")
+    logging.info(f"[{datetime.now()}]: Starting updates.")
 
-    time_start = datetime.datetime.now()
+    time_start = datetime.now()
 
     for user in get_users():
 
-        logging.debug(f"[{datetime.datetime.now()}]: Processing user {user.email}")
+        logging.debug(f"[{datetime.now()}]: Processing user {user.email}")
 
         for group_code in user.group_codes:
 
-            logging.debug(f"[{datetime.datetime.now()}]: Processing group {group_code}")
+            logging.debug(f"[{datetime.now()}]: Processing group {group_code}")
 
             try:
                 schedule_events = get_schedule(group_code, user.fetch_days)
@@ -70,7 +70,7 @@ def update_events():
                     calendar_id = service.calendars().insert(body={'summary': f'{calendar_summary}'}).execute()['id']
                     # Creating the calendar
 
-                    logging.debug(f"[{datetime.datetime.now()}]: Creating calendar {calendar_summary} for user {user.email}")
+                    logging.debug(f"[{datetime.now()}]: Creating calendar {calendar_summary} for user {user.email}")
 
                     service.calendarList().update(  # Enable the calendar in list and update color to match SSU style
                         calendarId=calendar_id,
@@ -83,14 +83,17 @@ def update_events():
                     if entry['summary'] == f'{calendar_summary}':
                         calendar_id = entry['id']
 
-                g_events = service.events().list(calendarId=calendar_id).execute()['items']
+                g_events = service.events().list(
+                    calendarId=calendar_id,
+                    timeMin=f'{datetime.combine(date.today(), datetime.min.time()).isoformat()}Z'
+                ).execute()['items']
 
                 for g_event in g_events:  # removing obsolete events
                     try:
                         if not g_event['extendedProperties']['private']['ssuHash'] in schedule_hashes:
                             service.events().delete(calendarId=calendar_id, eventId=g_event['id']).execute()
                             del g_events[g_events.index(g_event)]
-                    except KeyError:  # no description - no event
+                    except KeyError:  # no hash - no event
                         service.events().delete(calendarId=calendar_id, eventId=g_event['id']).execute()
                         del g_events[g_events.index(g_event)]
 
@@ -102,12 +105,12 @@ def update_events():
                             [g_event['extendedProperties']['private']['ssuHash'] for g_event in g_events]):  # events
                         continue
 
-                    timeStart = datetime.datetime.strptime(  # Converting Schedule timeframe to isoformat
+                    timeStart = datetime.strptime(  # Converting Schedule timeframe to isoformat
                         f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][:5]}",
                         "%d.%m.%Y %H:%M"
                     ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
 
-                    timeEnd = datetime.datetime.strptime(  # Converting Schedule timeframe to isoformat
+                    timeEnd = datetime.strptime(  # Converting Schedule timeframe to isoformat
                         f"{ssuEvent['DATE_REG']} {ssuEvent['TIME_PAIR'][6:]}",
                         "%d.%m.%Y %H:%M"
                     ).replace(tzinfo=dtz.gettz("Europe/Kiev")).isoformat()
@@ -144,15 +147,15 @@ def update_events():
                     ).execute()
 
                     logging.debug(
-                        f"[{datetime.datetime.now()}]: Event created for user {user.email}, " +
+                        f"[{datetime.now()}]: Event created for user {user.email}, " +
                         f"link: {event.get('htmlLink')}"
                     )
 
                 service.close()  # closing session, Important!
 
             except:
-                logging.exception(f"[{datetime.datetime.now()}]: Exception occurred!!!")
+                logging.exception(f"[{datetime.now()}]: Exception occurred!!!")
 
     logging.info(
-        f"[{datetime.datetime.now()}]: Finished updates in {(datetime.datetime.now() - time_start).total_seconds()} seconds."
+        f"[{datetime.now()}]: Finished updates in {(datetime.now() - time_start).total_seconds()} seconds."
     )
