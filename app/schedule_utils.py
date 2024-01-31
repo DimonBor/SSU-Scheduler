@@ -1,5 +1,7 @@
 import json
 import logging
+import re
+
 import dateutil.tz as dtz
 import requests
 from hashlib import sha256
@@ -118,7 +120,12 @@ def update_events():
                     event = {  # Creating event payload
                         'summary': ssuEvent['NAME_DISC'],
                         'location': ssuEvent['NAME_AUD'] if ssuEvent['NAME_AUD'] else 'Online',
-                        'description': f"{ssuEvent['NAME_FIO']}\n{ssuEvent['NAME_STUD']}\n\n{ssuEvent['COMMENT']}",
+                        'description': (
+                            f"{ssuEvent['NAME_FIO']}\n" +
+                            f"{ssuEvent['NAME_STUD']}" +
+                            f"{re.sub(r'<[^>]+>', '', ssuEvent['INFO'])}\n\n"
+                            f"{ssuEvent['COMMENT']}\n\n"
+                        ),
                         'start': {
                             'dateTime': timeStart,
                             'timeZone': 'Europe/Kyiv',
