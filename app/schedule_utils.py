@@ -122,7 +122,7 @@ def update_events():
                         'location': ssuEvent['NAME_AUD'] if ssuEvent['NAME_AUD'] else 'Online',
                         'description': (
                             f"{ssuEvent['NAME_FIO']}\n" +
-                            f"{ssuEvent['NAME_STUD']}" +
+                            f"{ssuEvent['NAME_STUD']}\n\n" +
                             f"{re.sub(r'<[^>]+>', '', ssuEvent['INFO'])}\n\n"
                             f"{ssuEvent['COMMENT']}\n\n"
                         ),
