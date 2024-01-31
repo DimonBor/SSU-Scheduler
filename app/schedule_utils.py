@@ -123,8 +123,8 @@ def update_events():
                         'description': (
                             f"{ssuEvent['NAME_FIO']}\n" +
                             f"{ssuEvent['NAME_STUD']}\n\n" +
-                            f"{re.sub(r'<[^>]+>', '', ssuEvent['INFO'])}\n\n"
-                            f"{ssuEvent['COMMENT']}\n\n"
+                            (f"{re.sub(r'<[^>]+>', '', ssuEvent['INFO'])}\n\n" if ssuEvent['INFO'] else "") +
+                            (f"{ssuEvent['COMMENT']}\n\n" if ssuEvent['COMMENT'] else "")
                         ),
                         'start': {
                             'dateTime': timeStart,
